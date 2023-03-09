@@ -5,6 +5,9 @@
 #include <sys/mman.h>
 #include "platform.h"
 #include "shmem.h"
+#include <sys/syscall.h>
+
+#define gettid() ((pid_t)syscall(SYS_gettid))
 
 __thread threadid xxxtid = INVALID_TID;
 
