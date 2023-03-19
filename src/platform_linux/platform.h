@@ -70,8 +70,9 @@ typedef int32 bool32;
  * bit-array to track thread IDs in use. This could be changed relatively
  * easily if needed.
  */
-#define MAX_THREADS (64)
+#define MAX_THREADS (128)
 #define INVALID_TID (MAX_THREADS)
+#define TID_ARRAY_SIZE (MAX_THREADS / 64)
 
 #define HASH_SEED (42)
 

@@ -117,7 +117,7 @@ struct task_system {
     * particular position, 1 means it is unset and that thread id is available
     * for use.
     */
-   uint64 tid_bitmask;
+   uint64 tid_bitmask[TID_ARRAY_SIZE];
    // max thread id so far.
    threadid max_tid;
    void    *thread_scratch[MAX_THREADS];
