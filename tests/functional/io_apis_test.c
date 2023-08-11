@@ -48,7 +48,7 @@ typedef struct io_test_fn_args {
 } io_test_fn_args;
 
 /* Whether to display verbose-progress from each thread's activity */
-bool Verbose_progress = FALSE;
+bool32 Verbose_progress = FALSE;
 
 /*
  * Different test cases in this test drive multiple threads each doing one
@@ -277,7 +277,9 @@ splinter_io_apis_test(int argc, char *argv[])
 
    test_async_reads_by_threads(&io_test_fn_arg, NUM_THREADS);
 
+   task_system_destroy(hid, &tasks);
 io_free:
+   io_handle_deinit(io_hdl);
    platform_free(hid, io_hdl);
 heap_destroy:
    platform_heap_destroy(&hh);

@@ -47,7 +47,7 @@ typedef struct {
    uint64 io_async_queue_depth;
 
    // cache
-   bool        cache_use_stats;
+   _Bool       cache_use_stats;
    const char *cache_logfile;
 
    // task system
@@ -73,7 +73,7 @@ typedef struct {
    uint64 filter_index_size;
 
    // log
-   bool use_log;
+   _Bool use_log;
 
    // splinter
    uint64 memtable_capacity;
@@ -237,7 +237,7 @@ void
 splinterdb_lookup_result_deinit(splinterdb_lookup_result *result); // IN
 
 // Returns true if the result was found
-bool
+_Bool
 splinterdb_lookup_found(const splinterdb_lookup_result *result); // IN
 
 // Decode the value from a found result
@@ -330,12 +330,36 @@ splinterdb_iterator_deinit(splinterdb_iterator *iter);
 
 // Checks that the iterator status is OK (no errors) and that get_current()
 // will succeed. If false, there are two possibilities:
-// 1. Iterator has passed the final item.  In this case, status() == 0
+// 1. Iterator is out of bounds.  In this case, status() == 0
 // 2. Iterator has encountered an error.  In this case, status() != 0
-bool
+_Bool
 splinterdb_iterator_valid(splinterdb_iterator *iter);
 
-// Attempts to advance the iterator to the next item.
+/*
+ * splinterdb_iterator_can_next --
+ * splinterdb_iterator_can_prev --
+ *
+ * Knowing the iterator is invalid does not provide enough information to
+ * determine if next and prev are safe operations.
+ *
+ * These functions provide granular information on which operations are safe.
+ * splinterdb_iterator_can_next == TRUE <-> splinterdb_iterator_next is safe
+ * splinterdb_iterator_can_prev == TRUE <-> splinterdb_iterator_prev is safe
+ */
+_Bool
+splinterdb_iterator_can_prev(splinterdb_iterator *iter);
+
+_Bool
+splinterdb_iterator_can_next(splinterdb_iterator *iter);
+
+// Moves the iterator to the previous item.
+// Precondition for calling: splinterdb_iterator_can_prev() returns TRUE
+// Any error will cause valid() == false and be visible with status()
+void
+splinterdb_iterator_prev(splinterdb_iterator *iter);
+
+// Moves the iterator to the next item.
+// Precondition for calling: splinterdb_iterator_can_next() returns TRUE
 // Any error will cause valid() == false and be visible with status()
 void
 splinterdb_iterator_next(splinterdb_iterator *iter);
