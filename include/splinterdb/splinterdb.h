@@ -400,4 +400,7 @@ splinterdb_stats_print_lookup(const splinterdb *kvs);
 void
 splinterdb_stats_reset(splinterdb *kvs);
 
+void
+splinterdb_print_allocator_stats(splinterdb *kvs);
+
 #endif // _SPLINTERDB_H_

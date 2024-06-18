@@ -723,3 +723,10 @@ splinterdb_stats_reset(splinterdb *kvs)
 {
    trunk_reset_stats(kvs->spl);
 }
+
+void
+splinterdb_print_allocator_stats(splinterdb *kvs)
+{
+   platform_set_log_streams(stdout, stderr);
+   allocator_print_stats(kvs->spl->al);
+}

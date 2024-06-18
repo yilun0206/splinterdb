@@ -636,6 +636,10 @@ platform_strnlen(const char *s, size_t maxlen);
 platform_log_handle *
 platform_get_stdout_stream(void);
 
+void
+platform_set_log_streams(platform_log_handle *info_stream,
+                         platform_log_handle *error_stream);
+
 platform_status
 platform_heap_create(platform_module_id    module_id,
                      uint32                max,
