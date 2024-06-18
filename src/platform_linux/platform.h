@@ -663,6 +663,10 @@ platform_get_stdout_stream(void);
 
 typedef struct shmem_heap shmem_heap;
 
+void
+platform_set_log_streams(platform_log_handle *info_stream,
+                         platform_log_handle *error_stream);
+
 platform_status
 platform_heap_create(platform_module_id module_id,
                      size_t             max,

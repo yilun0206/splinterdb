@@ -851,3 +851,10 @@ splinterdb_get_memtable_context_handle(const splinterdb *kvs)
 {
    return kvs->spl->mt_ctxt;
 }
+
+void
+splinterdb_print_allocator_stats(splinterdb *kvs)
+{
+   platform_set_log_streams(stdout, stderr);
+   allocator_print_stats(kvs->spl->al);
+}
