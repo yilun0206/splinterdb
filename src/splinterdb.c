@@ -858,3 +858,33 @@ splinterdb_print_allocator_stats(splinterdb *kvs)
    platform_set_log_streams(stdout, stderr);
    allocator_print_stats(kvs->spl->al);
 }
+
+// perf level and perf context
+static __thread perf_level tls_perf_level = k_disable;
+static __thread perf_context tls_perf_context = {
+   .get_from_memtable_nanos = 0,
+   .filter_and_index_lookup_nanos = 0,
+   .cache_lookup_nanos = 0,
+   .io_read_nanos = 0,
+
+   .write_wal_nanos = 0,
+   .write_memtable_nanos = 0,
+};
+
+perf_level
+get_perf_level()
+{
+   return tls_perf_level;
+}
+
+void
+set_perf_level(perf_level level)
+{
+   tls_perf_level = level;
+}
+
+perf_context *
+get_perf_context()
+{
+   return &tls_perf_context;
+}
