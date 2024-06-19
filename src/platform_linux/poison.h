@@ -81,7 +81,7 @@
 #   pragma GCC poison                             strcmp
 #endif // Cannot poison existing macros
 
-#pragma GCC        poison __thread
+// #pragma GCC        poison __thread
 #pragma GCC poison laio_handle
 #pragma GCC poison mmap
 #pragma GCC poison pthread_attr_destroy

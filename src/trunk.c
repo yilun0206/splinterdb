@@ -3375,6 +3375,8 @@ platform_status
 trunk_memtable_insert(trunk_handle *spl, key tuple_key, message msg)
 {
    uint64 generation;
+   uint64_t write_wal_nanos = 0;
+   timestamp start_ts = platform_get_timestamp();
 
    platform_status rc =
       memtable_maybe_rotate_and_begin_insert(spl->mt_ctxt, &generation);
@@ -3398,7 +3400,9 @@ trunk_memtable_insert(trunk_handle *spl, key tuple_key, message msg)
    }
 
    if (spl->cfg.use_log) {
+      timestamp write_wal_start_ts = platform_get_timestamp();
       int crappy_rc = log_write(spl->log, tuple_key, msg, leaf_generation);
+      write_wal_nanos += platform_timestamp_elapsed(write_wal_start_ts);
       if (crappy_rc != 0) {
          goto unlock_insert_lock;
       }
@@ -3407,6 +3411,11 @@ trunk_memtable_insert(trunk_handle *spl, key tuple_key, message msg)
 unlock_insert_lock:
    memtable_end_insert(spl->mt_ctxt);
 out:
+   if (get_perf_level() == k_enable) {
+      perf_context *perf_ctx = get_perf_context();
+      perf_ctx->write_memtable_nanos += platform_timestamp_elapsed(start_ts) - write_wal_nanos;
+      perf_ctx->write_wal_nanos += write_wal_nanos;
+   }
    return rc;
 }
 

@@ -50,3 +50,43 @@ slice_data(const slice b)
 {
    return b.data;
 }
+
+typedef enum perf_level {
+  k_disable,
+  k_enable
+} perf_level;
+
+typedef struct perf_context {
+   // Get related stats
+   uint64_t get_from_memtable_nanos;         // total nanos spent on querying memtables
+   uint64_t filter_and_index_lookup_nanos;   // total nanos spent on looking up index/filter
+   uint64_t cache_lookup_nanos;              // total nanos spent on looking up cache
+   uint64_t io_read_nanos;                   // total nanos spent on io read
+
+   // Put related stats
+   uint64_t write_wal_nanos;                 // total nanos spent on writing to WAL
+   uint64_t write_memtable_nanos;            // total nanos spent on writing to memtables
+} perf_context;
+
+static inline void
+perf_context_reset(struct perf_context *ctx)
+{
+   // Reset get related stats
+   ctx->get_from_memtable_nanos = 0;
+   ctx->filter_and_index_lookup_nanos = 0;
+   ctx->cache_lookup_nanos = 0;
+   ctx->io_read_nanos = 0;
+
+   // Rest put related  stats
+   ctx->write_wal_nanos = 0;
+   ctx->write_memtable_nanos = 0;
+}
+
+extern perf_context *
+get_perf_context();
+
+extern perf_level
+get_perf_level();
+
+extern void
+set_perf_level(perf_level level);
