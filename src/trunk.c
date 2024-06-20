@@ -6862,6 +6862,12 @@ trunk_lookup(trunk_handle *spl, key target, merge_accumulator *result)
    //     --- 2. for [mt_no = mt->generation..mt->gen_to_incorp]
    // 2. for gen = mt->generation; mt[gen % ...].gen == gen; gen --;
    //                also handles switch to READY ^^^^^
+   perf_level __perf_level = get_perf_level();
+   perf_context *perf_ctx = get_perf_context();
+   uint64_t memtable_lookup_start_ts = 0;
+   if (__perf_level == k_enable) {
+     memtable_lookup_start_ts = platform_get_timestamp();
+   }
 
    merge_accumulator_set_to_null(result);
 
@@ -6886,6 +6892,16 @@ trunk_lookup(trunk_handle *spl, key target, merge_accumulator *result)
 
    // release memtable lookup lock
    memtable_end_lookup(spl->mt_ctxt);
+
+   uint64_t curr_cache_lookup_nanos = 0;
+   uint64_t curr_io_read_nanos = 0;
+   uint64_t filter_and_index_lookup_start_ts = 0;
+   if (__perf_level == k_enable) {
+     filter_and_index_lookup_start_ts = platform_get_timestamp();
+     perf_ctx->get_from_memtable_nanos += filter_and_index_lookup_start_ts - memtable_lookup_start_ts;
+     curr_cache_lookup_nanos = perf_ctx->cache_lookup_nanos;
+     curr_io_read_nanos = perf_ctx->io_read_nanos;
+   }
 
    // look in index nodes
    uint16 height = trunk_node_height(&node);
@@ -6924,8 +6940,17 @@ found_final_answer_early:
    if (found_in_memtable) {
       // release memtable lookup lock
       memtable_end_lookup(spl->mt_ctxt);
+      if (get_perf_level() == k_enable) {
+         perf_ctx->get_from_memtable_nanos += platform_timestamp_elapsed(memtable_lookup_start_ts);
+      }
    } else {
       trunk_node_unget(spl->cc, &node);
+      if (get_perf_level() == k_enable) {
+         uint64_t cache_lookup_nanos = perf_ctx->cache_lookup_nanos - curr_cache_lookup_nanos;
+         uint64_t io_read_nanos = perf_ctx->io_read_nanos - curr_io_read_nanos;
+         perf_ctx->filter_and_index_lookup_nanos +=
+           platform_timestamp_elapsed(filter_and_index_lookup_start_ts) - cache_lookup_nanos - io_read_nanos;
+      }
    }
    if (spl->cfg.use_stats) {
       threadid tid = platform_get_tid();
