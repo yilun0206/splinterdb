@@ -2232,8 +2232,15 @@ clockcache_get_internal(clockcache   *cc,       // IN
       start = platform_get_timestamp();
    }
 
+   uint64_t io_read_start_ts = 0;
+   if (get_perf_level() == k_enable) {
+     io_read_start_ts = platform_get_timestamp();
+   }
    status = io_read(cc->io, entry->page.data, page_size, addr);
    platform_assert_status_ok(status);
+   if (get_perf_level() == k_enable) {
+     get_perf_context()->io_read_nanos += platform_timestamp_elapsed(io_read_start_ts);
+   }
 
    if (cc->cfg->use_stats) {
       elapsed = platform_timestamp_elapsed(start);
@@ -2275,9 +2282,24 @@ clockcache_get(clockcache *cc, uint64 addr, bool32 blocking, page_type type)
 
    debug_assert(cc->per_thread[platform_get_tid()].enable_sync_get
                 || type == PAGE_TYPE_MEMTABLE);
+
+   perf_level __perf_level = get_perf_level();
+   perf_context *perf_ctx = get_perf_context();
+   uint64_t start_ts = 0;
+   uint64_t curr_io_read_nanos = 0;
+
+   if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+     start_ts = platform_get_timestamp();
+     curr_io_read_nanos = perf_ctx->io_read_nanos;
+   }
+
    while (1) {
       retry = clockcache_get_internal(cc, addr, blocking, type, &handle);
       if (!retry) {
+         if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+            uint64_t io_read_nanos = perf_ctx->io_read_nanos - curr_io_read_nanos;
+            perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_read_nanos;
+         }
          return handle;
       }
    }
