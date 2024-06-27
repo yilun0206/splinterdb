@@ -23,6 +23,7 @@
 #include "shard_log.h"
 #include "splinterdb_tests_private.h"
 #include "poison.h"
+#include "pcq.h"
 
 const char *BUILD_VERSION = "splinterdb_build_version " GIT_VERSION;
 
@@ -857,4 +858,159 @@ splinterdb_print_allocator_stats(splinterdb *kvs)
 {
    platform_set_log_streams(stdout, stderr);
    allocator_print_stats(kvs->spl->al);
+}
+
+
+typedef struct {
+   trunk_async_ctxt           ctxt;
+   pcq                        *ready_request_queue;
+   key                        target;
+   _splinterdb_lookup_result  *_result;
+   uint64_t                   user_data;
+} async_lookup_req;
+
+typedef struct {
+   const splinterdb  *kvs;
+   uint32            max_inflight_reqs;
+   pcq               *ready_requests;
+   pcq               *avail_requests;
+   pcq               *complete_requests;
+   async_lookup_req  reqs[];
+} async_lookup_context_impl;
+
+async_lookup_context_t
+splinterdb_create_async_lookup_context(const splinterdb *kvs)
+{
+   uint64 max_inflight_reqs = kvs->io_cfg.kernel_queue_size;
+   async_lookup_context_impl *async_ctx = NULL;
+   platform_heap_id hid = platform_get_heap_id();
+
+   // max_async_inflight can be zero
+   async_ctx = TYPED_FLEXIBLE_STRUCT_MALLOC(hid, async_ctx, reqs, max_inflight_reqs);
+   platform_assert(async_ctx);
+   async_ctx->kvs = kvs;
+   async_ctx->max_inflight_reqs = max_inflight_reqs;
+   async_ctx->ready_requests = pcq_alloc(hid, max_inflight_reqs);
+   async_ctx->avail_requests = pcq_alloc(hid, max_inflight_reqs);
+   async_ctx->complete_requests = pcq_alloc(hid, max_inflight_reqs);
+   platform_assert(async_ctx->ready_requests);
+   platform_assert(async_ctx->avail_requests);
+   platform_assert(async_ctx->complete_requests);
+
+   for (uint64 i = 0; i < max_inflight_reqs; i++) {
+      async_ctx->reqs[i].ready_request_queue = async_ctx->ready_requests;
+      // All reqs start out as available
+      pcq_enqueue(async_ctx->avail_requests, &async_ctx->reqs[i]);
+   }
+   return (async_lookup_context_t)async_ctx;
+}
+
+void
+splinterdb_destroy_async_lookup_context(async_lookup_context_t ctx)
+{
+   async_lookup_context_impl *async_ctx = (async_lookup_context_impl *)ctx;
+   platform_heap_id hid = platform_get_heap_id();
+
+   platform_assert(pcq_is_full(async_ctx->avail_requests));
+   pcq_free(hid, async_ctx->avail_requests);
+   platform_assert(pcq_is_empty(async_ctx->ready_requests));
+   pcq_free(hid, async_ctx->ready_requests);
+   platform_assert(pcq_is_empty(async_ctx->complete_requests));
+   pcq_free(hid, async_ctx->complete_requests);
+   platform_free(hid, async_ctx);
+}
+
+static void
+splinterdb_async_lookup_callback(trunk_async_ctxt *spl_ctxt)
+{
+   async_lookup_req *req = container_of(spl_ctxt, async_lookup_req, ctxt);
+
+   platform_assert(spl_ctxt->cache_ctxt.page);
+   pcq_enqueue(req->ready_request_queue, req);
+}
+
+static void
+splinterdb_async_process_one(async_lookup_context_impl *async_ctx, async_lookup_req *req)
+{
+   cache_async_result res = trunk_lookup_async(
+      async_ctx->kvs->spl, req->target, &req->_result->value, &req->ctxt);
+
+   switch (res) {
+      case async_locked:
+      case async_no_reqs:
+         pcq_enqueue(async_ctx->ready_requests, req);
+         break;
+      case async_io_started:
+         break;
+      case async_success:
+         pcq_enqueue(async_ctx->complete_requests, req);
+         break;
+      default:
+         platform_assert(0);
+   }
+}
+
+static void
+splinterdb_async_process_ready(async_lookup_context_impl *async_ctx)
+{
+   uint32 count = pcq_count(async_ctx->ready_requests);
+   while (count-- > 0) {
+      async_lookup_req *req;
+      platform_status  rc;
+
+      rc = pcq_dequeue(async_ctx->ready_requests, (void **)&req);
+      if (!SUCCESS(rc)) {
+         // Something is ready, just can't be dequeued yet.
+         break;
+      }
+      splinterdb_async_process_one(async_ctx, req);
+   }
+}
+
+int
+splinterdb_submit_async_lookup(async_lookup_context_t ctx,
+                               struct async_lookup_control_block *cb)
+{
+   async_lookup_context_impl *async_ctx = (async_lookup_context_impl *)ctx;
+   async_lookup_req *req;
+   platform_status  rc;
+
+   rc = pcq_dequeue(async_ctx->avail_requests, (void **)&req);
+   if (!SUCCESS(rc)) {
+      return 0;
+   }
+   req->target = key_create_from_slice(cb->key);
+   req->_result = (_splinterdb_lookup_result *)cb->result;
+   req->user_data = cb->user_data;
+   trunk_async_ctxt_init(&req->ctxt, splinterdb_async_lookup_callback);
+   splinterdb_async_process_one(async_ctx, req);
+   return 1;
+}
+
+int
+splinterdb_poll_async_lookup(async_lookup_context_t ctx,
+                             struct async_lookup_completion *compls,
+                             int max_count)
+{
+   async_lookup_context_impl *async_ctx = (async_lookup_context_impl *)ctx;
+   async_lookup_req *req;
+   platform_status  rc;
+   int ret = 0;
+
+   splinterdb_async_process_ready(async_ctx);
+   if (pcq_is_empty(async_ctx->complete_requests)) {
+      cache_cleanup(async_ctx->kvs->spl->cc);
+   }
+
+   while (ret < max_count && !pcq_is_empty(async_ctx->complete_requests)) {
+      rc = pcq_dequeue(async_ctx->complete_requests, (void **)&req);
+      if (!SUCCESS(rc)) {
+         break;;
+      }
+      compls[ret].res = 0;
+      compls[ret].user_data = req->user_data;
+      pcq_enqueue(async_ctx->avail_requests, req);
+      ret++;
+   }
+   return ret;
 }
