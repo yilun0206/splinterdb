@@ -403,4 +403,39 @@ splinterdb_stats_reset(splinterdb *kvs);
 void
 splinterdb_print_allocator_stats(splinterdb *kvs);
 
+/*
+ * Async get related functions
+ */
+typedef uint64_t async_lookup_context_t;
+
+struct async_lookup_control_block {
+   slice key;
+   splinterdb_lookup_result *result;
+   uint64 user_data;
+};
+
+struct async_lookup_completion {
+   int res;
+   uint64 user_data;
+};
+
+// Create a context to perform async get.
+async_lookup_context_t
+splinterdb_create_async_lookup_context(const splinterdb *kvs);
+
+void
+splinterdb_destroy_async_lookup_context(async_lookup_context_t ctx);
+
+// Async lookup
+int
+splinterdb_submit_async_lookup(async_lookup_context_t ctx,              // IN
+                               struct async_lookup_control_block *cb    // IN/OUT
+);
+
+int
+splinterdb_poll_async_lookup(async_lookup_context_t ctx,
+                             struct async_lookup_completion *compls,
+                             int max_count
+);
+
 #endif // _SPLINTERDB_H_
