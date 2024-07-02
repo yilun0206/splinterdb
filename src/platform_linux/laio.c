@@ -113,7 +113,8 @@ unlock_ctx(laio_handle *io)
 static uint64
 get_ctx_idx(laio_handle *io)
 {
-   const pid_t pid = platform_getpid();
+   // const pid_t pid = platform_getpid();
+   const threadid pid = platform_get_tid();
 
    lock_ctx(io);
 
