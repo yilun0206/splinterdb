@@ -438,6 +438,8 @@ static __thread perf_context tls_perf_context = {
    .filter_and_index_lookup_nanos = 0,
    .cache_lookup_nanos = 0,
    .io_read_nanos = 0,
+   .io_submit_nanos = 0,
+   .io_poll_nanos = 0,
 
    .write_wal_nanos = 0,
    .write_memtable_nanos = 0,

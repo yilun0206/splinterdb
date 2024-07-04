@@ -5,6 +5,7 @@
 #define PLATFORM_H
 
 #include "splinterdb/public_platform.h"
+#include "splinterdb/public_util.h"
 
 /*
  * Platform directory is chosen via -I include options to compiler.

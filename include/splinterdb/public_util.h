@@ -62,6 +62,8 @@ typedef struct perf_context {
    uint64_t filter_and_index_lookup_nanos;   // total nanos spent on looking up index/filter
    uint64_t cache_lookup_nanos;              // total nanos spent on looking up cache
    uint64_t io_read_nanos;                   // total nanos spent on io read
+   uint64_t io_submit_nanos;                 // total nanos spent on io submit
+   uint64_t io_poll_nanos;                   // total nanos spent on io poll
 
    // Put related stats
    uint64_t write_wal_nanos;                 // total nanos spent on writing to WAL
@@ -76,6 +78,8 @@ perf_context_reset(struct perf_context *ctx)
    ctx->filter_and_index_lookup_nanos = 0;
    ctx->cache_lookup_nanos = 0;
    ctx->io_read_nanos = 0;
+   ctx->io_submit_nanos = 0;
+   ctx->io_poll_nanos = 0;
 
    // Rest put related  stats
    ctx->write_wal_nanos = 0;

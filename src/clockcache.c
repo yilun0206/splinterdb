@@ -2385,6 +2385,17 @@ clockcache_get_async(clockcache       *cc,   // IN
       return async_locked;
    }
 #endif
+   perf_level __perf_level = get_perf_level();
+   perf_context *perf_ctx = get_perf_context();
+   uint64_t start_ts = 0;
+   uint64_t curr_io_submit_nanos = 0;
+   uint64_t curr_io_poll_nanos = 0;
+
+   if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+     start_ts = platform_get_timestamp();
+     curr_io_submit_nanos = perf_ctx->io_submit_nanos;
+     curr_io_poll_nanos = perf_ctx->io_poll_nanos;
+   }
 
    debug_assert(addr % clockcache_page_size(cc) == 0);
    debug_assert((cache *)cc == ctxt->cc);
@@ -2412,11 +2423,21 @@ clockcache_get_async(clockcache       *cc,   // IN
                         "get (eviction race): entry %u addr %lu\n",
                         entry_number,
                         addr);
+         if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+            uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+            uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+            perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+         }
          return async_locked;
       }
       if (clockcache_get_entry(cc, entry_number)->page.disk_addr != addr) {
          // this also means we raced with eviction and really lost
          clockcache_dec_ref(cc, entry_number, tid);
+         if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+            uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+            uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+            perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+         }
          return async_locked;
       }
       if (clockcache_test_flag(cc, entry_number, CC_LOADING)) {
@@ -2425,6 +2446,11 @@ clockcache_get_async(clockcache       *cc,   // IN
           * the get operation until an IO is complete.
           */
          clockcache_dec_ref(cc, entry_number, tid);
+         if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+            uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+            uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+            perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+         }
          return async_locked;
       }
       entry = clockcache_get_entry(cc, entry_number);
@@ -2439,6 +2465,11 @@ clockcache_get_async(clockcache       *cc,   // IN
                      addr,
                      clockcache_get_ref(cc, entry_number, tid));
       ctxt->page = &entry->page;
+      if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+         uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+         uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+         perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+      }
       return async_success;
    }
    /*
@@ -2450,6 +2481,11 @@ clockcache_get_async(clockcache       *cc,   // IN
                                            TRUE,   // refcount
                                            FALSE); // !blocking
    if (entry_number == CC_UNMAPPED_ENTRY) {
+      if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+         uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+         uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+         perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+      }
       return async_locked;
    }
    entry = clockcache_get_entry(cc, entry_number);
@@ -2472,6 +2508,11 @@ clockcache_get_async(clockcache       *cc,   // IN
                      "get retry: entry: %u addr: %lu\n",
                      entry_number,
                      addr);
+      if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+         uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+         uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+         perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+      }
       return async_locked;
    }
 
@@ -2493,6 +2534,11 @@ clockcache_get_async(clockcache       *cc,   // IN
                      "get retry(out of ioreq): entry: %u addr: %lu\n",
                      entry_number,
                      addr);
+      if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+         uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+         uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+         perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+      }
       return async_no_reqs;
    }
    req->bytes                         = clockcache_multiply_by_page_size(cc, 1);
@@ -2506,7 +2552,11 @@ clockcache_get_async(clockcache       *cc,   // IN
    if (cc->cfg->use_stats) {
       cc->stats[tid].cache_misses[type]++;
    }
-
+   if (__perf_level == k_enable && type == PAGE_TYPE_BRANCH) {
+      uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+      uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+      perf_ctx->cache_lookup_nanos += platform_timestamp_elapsed(start_ts) - io_submit_nanos - io_poll_nanos;
+   }
    return async_io_started;
 }
 

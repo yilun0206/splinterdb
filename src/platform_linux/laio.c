@@ -428,7 +428,11 @@ laio_read_async(io_handle     *ioh,
       // We increment the io_count before submitting the request to avoid
       // having the io_count go negative if another thread calls io_cleanup
       __sync_fetch_and_add(&pctx->io_count, 1);
+      uint64_t io_submit_start_ts = platform_get_timestamp();
       status = io_submit(pctx->ctx, 1, &req->iocb_p);
+      if (get_perf_level() == k_enable) {
+         get_perf_context()->io_submit_nanos += platform_timestamp_elapsed(io_submit_start_ts);
+      }
       if (status <= 0) {
          __sync_fetch_and_sub(&pctx->io_count, 1);
       }
@@ -513,7 +517,11 @@ laio_cleanup(io_handle *ioh, uint64 count)
    // Check for completion of up to 'count' events, one event at a time.
    // Or, check for all outstanding events (count == 0)
    for (i = 0; (count == 0 || i < count) && 0 < pctx->io_count; i++) {
+      uint64_t io_poll_start_ts = platform_get_timestamp();
       status = io_getevents(pctx->ctx, 0, 1, &event, NULL);
+      if (get_perf_level() == k_enable) {
+         get_perf_context()->io_poll_nanos += platform_timestamp_elapsed(io_poll_start_ts);
+      }
       if (status < 0) {
          platform_error_log("%s(): OS-pid=%d, tid=%lu, io_getevents[%lu], "
                             "count=%lu, io_count=%lu,"

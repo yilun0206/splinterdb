@@ -7152,6 +7152,23 @@ trunk_lookup_async(trunk_handle      *spl,    // IN
 {
    cache_async_result res = 0;
    threadid           tid;
+   perf_level __perf_level = get_perf_level();
+   perf_context *perf_ctx = get_perf_context();
+   uint64_t async_lookup_start_ts = 0;
+   uint64_t memtable_lookup_start_ts = 0;
+
+   uint64_t curr_memtable_lookup_nanos = 0;
+   uint64_t curr_cache_lookup_nanos = 0;
+   uint64_t curr_io_submit_nanos = 0;
+   uint64_t curr_io_poll_nanos = 0;
+   // uint64_t filter_and_index_lookup_start_ts = 0;
+   if (__perf_level == k_enable) {
+      async_lookup_start_ts = platform_get_timestamp();
+      curr_memtable_lookup_nanos = perf_ctx->get_from_memtable_nanos;
+      curr_cache_lookup_nanos = perf_ctx->cache_lookup_nanos;
+      curr_io_submit_nanos = perf_ctx->io_submit_nanos;
+      curr_io_poll_nanos = perf_ctx->io_poll_nanos;
+   }
 
 #if TRUNK_DEBUG
    cache_enable_sync_get(spl->cc, FALSE);
@@ -7172,6 +7189,9 @@ trunk_lookup_async(trunk_handle      *spl,    // IN
          }
          case async_state_lookup_memtable:
          {
+            if (__perf_level == k_enable) {
+               memtable_lookup_start_ts = platform_get_timestamp();
+            }
             memtable_begin_lookup(spl->mt_ctxt);
             uint64 mt_gen_start = memtable_generation(spl->mt_ctxt);
             uint64 mt_gen_end   = memtable_generation_retired(spl->mt_ctxt);
@@ -7185,6 +7205,9 @@ trunk_lookup_async(trunk_handle      *spl,    // IN
                   memtable_end_lookup(spl->mt_ctxt);
                   break;
                }
+            }
+            if (__perf_level == k_enable) {
+               perf_ctx->get_from_memtable_nanos += platform_timestamp_elapsed(memtable_lookup_start_ts);
             }
             if (ctxt->state == async_state_found_final_answer_early) {
                break;
@@ -7593,7 +7616,14 @@ trunk_lookup_async(trunk_handle      *spl,    // IN
 #if TRUNK_DEBUG
    cache_enable_sync_get(spl->cc, TRUE);
 #endif
-
+   if (__perf_level == k_enable) {
+      uint64_t memtable_lookup_nanos = perf_ctx->get_from_memtable_nanos - curr_memtable_lookup_nanos;
+      uint64_t cache_lookup_nanos = perf_ctx->cache_lookup_nanos - curr_cache_lookup_nanos;
+      uint64_t io_submit_nanos = perf_ctx->io_submit_nanos - curr_io_submit_nanos;
+      uint64_t io_poll_nanos = perf_ctx->io_poll_nanos - curr_io_poll_nanos;
+      perf_ctx->filter_and_index_lookup_nanos += platform_timestamp_elapsed(async_lookup_start_ts) -
+         memtable_lookup_nanos - cache_lookup_nanos - io_submit_nanos - io_poll_nanos;
+   }
    return res;
 }
 
