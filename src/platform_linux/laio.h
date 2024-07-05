@@ -64,6 +64,7 @@ typedef struct laio_handle {
    uint64             max_batches_nonblocking_get;
    uint64             req_hand_base;
    uint64             req_hand[MAX_THREADS];
+   bool32             has_user_async_lookup_ctx[MAX_THREADS];
    platform_heap_id   heap_id;
    int                fd; // File descriptor to Splinter device/file.
 } laio_handle;

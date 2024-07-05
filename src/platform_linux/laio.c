@@ -446,7 +446,9 @@ laio_read_async(io_handle     *ioh,
                             -status,
                             strerror(-status));
       }
-      io_cleanup(ioh, 0);
+      if (!io->has_user_async_lookup_ctx[platform_get_tid()]) {
+         io_cleanup(ioh, 0);
+      }
    } while (status != 1);
 
    return STATUS_OK;
@@ -534,6 +536,9 @@ laio_cleanup(io_handle *ioh, uint64 count)
                             pctx->io_count,
                             -status,
                             strerror(-status));
+      }
+      if (status <= 0 && count != 0) {
+         break;
       }
       if (status <= 0) {
          i--;

@@ -879,7 +879,7 @@ typedef struct {
 } async_lookup_context_impl;
 
 async_lookup_context_t
-splinterdb_create_async_lookup_context(const splinterdb *kvs)
+splinterdb_create_async_lookup_context(splinterdb *kvs)
 {
    uint64 max_inflight_reqs = kvs->io_cfg.kernel_queue_size;
    async_lookup_context_impl *async_ctx = NULL;
@@ -902,6 +902,7 @@ splinterdb_create_async_lookup_context(const splinterdb *kvs)
       // All reqs start out as available
       pcq_enqueue(async_ctx->avail_requests, &async_ctx->reqs[i]);
    }
+   kvs->io_handle.has_user_async_lookup_ctx[platform_get_tid()] = 1;
    return (async_lookup_context_t)async_ctx;
 }
 

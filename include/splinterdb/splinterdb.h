@@ -443,7 +443,7 @@ struct async_lookup_completion {
 
 // Create a context to perform async get.
 async_lookup_context_t
-splinterdb_create_async_lookup_context(const splinterdb *kvs);
+splinterdb_create_async_lookup_context(splinterdb *kvs);
 
 void
 splinterdb_destroy_async_lookup_context(async_lookup_context_t ctx);

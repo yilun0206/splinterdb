@@ -7202,10 +7202,11 @@ trunk_lookup_async(trunk_handle      *spl,    // IN
                if (merge_accumulator_is_definitive(result)) {
                   trunk_async_set_state(ctxt,
                                         async_state_found_final_answer_early);
-                  memtable_end_lookup(spl->mt_ctxt);
+                  // memtable_end_lookup(spl->mt_ctxt);
                   break;
                }
             }
+            memtable_end_lookup(spl->mt_ctxt);
             if (__perf_level == k_enable) {
                perf_ctx->get_from_memtable_nanos += platform_timestamp_elapsed(memtable_lookup_start_ts);
             }
@@ -7247,7 +7248,7 @@ trunk_lookup_async(trunk_handle      *spl,    // IN
                   ctxt->trunk_node.page = ctxt->cache_ctxt.page;
                   ctxt->trunk_node.hdr =
                      (trunk_hdr *)(ctxt->cache_ctxt.page->data);
-                  memtable_end_lookup(spl->mt_ctxt);
+                  // memtable_end_lookup(spl->mt_ctxt);
                   break;
                default:
                   platform_assert(0);
