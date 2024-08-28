@@ -6666,7 +6666,11 @@ trunk_insert(trunk_handle *spl, key tuple_key, message data)
       goto out;
    }
 
+   timestamp before_write_stall_ts = (get_perf_level() == k_enable)? platform_get_timestamp() : 0;
    task_perform_one_if_needed(spl->ts, spl->cfg.queue_scale_percent);
+   if (get_perf_level() == k_enable) {
+      get_perf_context()->write_stall_nanos += platform_timestamp_elapsed(before_write_stall_ts);
+   }
 
    if (spl->cfg.use_stats) {
       switch (message_class(data)) {

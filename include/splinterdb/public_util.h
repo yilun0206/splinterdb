@@ -66,6 +66,7 @@ typedef struct perf_context {
    // Put related stats
    uint64_t write_wal_nanos;                 // total nanos spent on writing to WAL
    uint64_t write_memtable_nanos;            // total nanos spent on writing to memtables
+   uint64_t write_stall_nanos;               // total nanos on write stall
 } perf_context;
 
 static inline void
@@ -80,6 +81,7 @@ perf_context_reset(struct perf_context *ctx)
    // Rest put related  stats
    ctx->write_wal_nanos = 0;
    ctx->write_memtable_nanos = 0;
+   ctx->write_stall_nanos = 0;
 }
 
 extern perf_context *
